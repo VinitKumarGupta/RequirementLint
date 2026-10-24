@@ -6,7 +6,7 @@ For example, "The application should load quickly" does not tell a tester how lo
 
 ## Project status
 
-Early development: line-based input parsing, English tokenization with spaCy, and an initial vague-wording rule are implemented. The tokenizer is available as a preprocessing component; the current warning rule still operates directly on text. Token-aware rules, part-of-speech tagging, classification, and the interface are planned.
+Early development: a Streamlit interface connects line-based input parsing, English tokenization with spaCy, and an initial vague-wording rule. It displays highlighted findings, explanations, suggestions, and token details. The current warning rule operates directly on text. Token-aware rules, part-of-speech tagging, and classification are planned.
 
 See [example requirements](docs/examples.md) for the proposed warnings and expected behavior.
 
@@ -33,6 +33,29 @@ On macOS or Linux:
 ```
 
 The examples below use `python`. Replace it with `.venv\Scripts\python.exe` on Windows or `.venv/bin/python` on macOS/Linux unless the environment is already activated. No trained spaCy model download is needed for tokenization. After installation, tokenization runs locally without network access.
+
+## Run the app
+
+After installing the dependencies, start the Streamlit interface:
+
+```sh
+python -m streamlit run app.py
+```
+
+On Windows, using the local environment directly:
+
+```sh
+.venv\Scripts\python.exe -m streamlit run app.py
+```
+
+Open the local URL shown in the terminal if the browser does not open automatically. Paste English requirements, one per line, and select **Analyze**.
+
+- The summary shows requirement, warning, and token counts.
+- Potentially vague phrases are highlighted in their original text.
+- Each warning includes an explanation and an improvement suggestion.
+- Expand **Explore NLP tokens** to inspect spaCy tokenization and character positions.
+
+The included sample is expected to produce four requirements and three warnings. The final requirement has no warning from the current rule. Empty input displays a prompt to enter a requirement. Stop the local server with Ctrl+C in the terminal.
 
 ## Run the parser
 
@@ -144,11 +167,11 @@ python -m unittest discover -s tests -v
 
 The tests cover input parsing, token boundaries and source positions, contractions, decimal numbers, warning explanations and locations, case handling, repeated matches, word boundaries, quoted labels, clear requirements, and the parser-to-rule workflow.
 
-## Planned features
+## Features and scope
 
 - Accept pasted English requirements, initially one requirement per line.
-- Highlight potentially vague wording and imprecise quantities.
-- Flag selected performance statements that lack measurable criteria.
+- Highlight the three supported vague phrases. Imprecise-quantity checks are planned.
+- Planned: flag selected performance statements that lack measurable criteria.
 - Explain each warning and prompt the user to make the requirement testable.
 - Keep the original wording unchanged for human review.
 
@@ -166,7 +189,7 @@ Later, a classical machine-learning classifier will be evaluated alongside the r
 
 ## Planned tools
 
-Python and spaCy are used for text processing and English tokenization. scikit-learn is planned for TF-IDF and classification, and Streamlit for the interface.
+Python and spaCy are used for text processing and English tokenization, with Streamlit for the interface. scikit-learn is planned for TF-IDF and classification.
 
 ## Development roadmap
 
