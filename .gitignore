@@ -8,3 +8,6 @@ venv/
 .env
 .env.*
 !.env.example
+
+# Locally generated model and evaluation artifacts
+/models/

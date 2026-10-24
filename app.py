@@ -1,12 +1,12 @@
 """Streamlit interface for reviewing English software requirements."""
 
-from dataclasses import asdict
 from html import escape
 
 import streamlit as st
 
 from requirementlint import Finding, check_imprecise_quantity, check_vague_wording, parse_requirements
 from requirementlint.preprocessing import tokenize_requirement
+from requirementlint.classifier import LABEL_NAMES, MODEL_PATH, load_model
 
 
 SAMPLE_REQUIREMENTS = (
@@ -17,6 +17,12 @@ SAMPLE_REQUIREMENTS = (
     "The system must support 100 concurrent users.\n"
     "When the user selects Cancel, close the dialog without saving changes."
 )
+
+
+@st.cache_resource
+def cached_model(modified_at: int):
+    """Reload the model when training changes its modification timestamp."""
+    return load_model()
 
 
 def highlight_findings(text: str, findings: list[Finding]) -> str:
@@ -40,6 +46,17 @@ def main() -> None:
     st.title("RequirementLint")
     st.write("Find potentially vague wording and make software requirements easier to test.")
     st.caption("English requirements · One requirement per line")
+
+    model = None
+    if MODEL_PATH.exists():
+        try:
+            model = cached_model(MODEL_PATH.stat().st_mtime_ns)
+        except (OSError, ValueError, EOFError, ImportError, AttributeError):
+            st.warning("The local classifier could not be loaded. Retrain it using the README instructions.")
+    if model is None:
+        st.info("Rule analysis is available. Train the starter model using the README instructions to enable ML predictions.")
+    else:
+        st.caption("ML demo: trained on a small synthetic dataset. Predictions may disagree with the rules.")
 
     with st.form("requirements_form"):
         text = st.text_area("Requirements", value=SAMPLE_REQUIREMENTS, height=200)
@@ -67,16 +84,21 @@ def main() -> None:
             findings = check_vague_wording(requirement)
             findings.extend(check_imprecise_quantity(requirement, tokens))
             findings.sort(key=lambda finding: finding.start)
-            results.append((requirement, tokens, findings))
+            results.append((requirement, findings))
 
-    requirement_count, warning_count, token_count = st.columns(3)
+        predictions = model.predict([requirement.text for requirement in requirements]) if model is not None else None
+
+    requirement_count, warning_count = st.columns(2)
     requirement_count.metric("Requirements", len(results))
-    warning_count.metric("Warnings", sum(len(findings) for _, _, findings in results))
-    token_count.metric("Tokens", sum(len(tokens) for _, tokens, _ in results))
+    warning_count.metric("Warnings", sum(len(findings) for _, findings in results))
 
-    for requirement, tokens, findings in results:
+    for index, (requirement, findings) in enumerate(results):
         st.subheader(f"Line {requirement.line_number}")
         st.markdown(highlight_findings(requirement.text, findings), unsafe_allow_html=True)
+
+        if predictions is not None:
+            st.write(f"**ML prediction:** {LABEL_NAMES[predictions[index]]}")
+            st.caption("Whole-requirement classification. Highlighted spans and suggestions below come from rules.")
 
         for finding in findings:
             st.caption(finding.category.replace("-", " ").capitalize())
@@ -84,16 +106,6 @@ def main() -> None:
             st.write(f"Suggestion: {finding.suggestion}")
         if not findings:
             st.info("No warnings from the current checks.")
-
-        with st.expander(f"Explore NLP tokens for line {requirement.line_number}"):
-            st.caption(
-                "spaCy splits the text into words and punctuation. Start and end are "
-                "character positions in the original line, starting at zero; end is excluded. "
-                "The quantity rule checks these tokens for many, several, and few. "
-                "Both warning categories use rules; a trained classifier is planned."
-            )
-            st.dataframe([asdict(token) for token in tokens], hide_index=True)
-
 
 if __name__ == "__main__":
     main()

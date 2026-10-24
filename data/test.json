@@ -1,0 +1,14 @@
+[
+  {"text": "Appointment booking should feel straightforward.", "label": "vague"},
+  {"text": "The notification service must deliver alerts quickly.", "label": "vague"},
+  {"text": "The archive should accommodate many documents.", "label": "vague"},
+  {"text": "The 4 onboarding screens must be intuitive.", "label": "vague"},
+  {"text": "The system should provide adequate protection against misuse.", "label": "vague"},
+  {"text": "Video playback must remain smooth on supported devices.", "label": "vague"},
+  {"text": "When a reservation is confirmed, email its identifier to the address entered during booking.", "label": "clear"},
+  {"text": "Exported invoices must contain the invoice date, currency code, and tax amount.", "label": "clear"},
+  {"text": "Selecting Unsubscribe must disable marketing emails for that address.", "label": "clear"},
+  {"text": "The session must expire after 20 minutes without keyboard or pointer input.", "label": "clear"},
+  {"text": "Under workload W3, 99% of inventory lookups must finish within 800 milliseconds.", "label": "clear"},
+  {"text": "The toolbar must display a menu item labelled Efficiently.", "label": "clear"}
+]
