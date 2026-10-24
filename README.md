@@ -6,9 +6,50 @@ For example, "The application should load quickly" does not tell a tester how lo
 
 ## Project status
 
-Early development: the scope and expected behavior are documented. A runnable application is not yet available.
+Early development: line-based input parsing is implemented and tested. Warning detection, classification, and the interface are planned.
 
 See [example requirements](docs/examples.md) for the proposed warnings and expected behavior.
+
+## Run the parser
+
+Requires Python 3.10 or newer. The current implementation uses only the Python standard library; no additional packages are required. Run commands from the repository root.
+
+```sh
+python -c "from requirementlint import parse_requirements; print(parse_requirements('The application should load quickly.'))"
+```
+
+Expected output:
+
+```text
+[Requirement(text='The application should load quickly.', line_number=1)]
+```
+
+The parser accepts one requirement per line. Blank lines are skipped, while original line numbers and wording (including surrounding spaces) are preserved. Multiple sentences on the same line remain one requirement. This step organizes the input; it does not yet identify vague wording.
+
+For use in Python:
+
+```python
+from requirementlint import parse_requirements
+
+text = "The application should load quickly.\n\nThe system must save changes."
+for requirement in parse_requirements(text):
+    print(f"{requirement.line_number}: {requirement.text}")
+```
+
+Output:
+
+```text
+1: The application should load quickly.
+3: The system must save changes.
+```
+
+## Tests
+
+```sh
+python -m unittest discover -s tests -v
+```
+
+The tests cover blank input, ordering, source line numbers, unchanged text, common line endings, and multiple sentences on a single line.
 
 ## Planned features
 
