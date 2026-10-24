@@ -5,7 +5,7 @@ from html import escape
 
 import streamlit as st
 
-from requirementlint import Finding, check_vague_wording, parse_requirements
+from requirementlint import Finding, check_imprecise_quantity, check_vague_wording, parse_requirements
 from requirementlint.preprocessing import tokenize_requirement
 
 
@@ -13,6 +13,8 @@ SAMPLE_REQUIREMENTS = (
     "The application should load quickly.\n"
     "The interface must be user-friendly.\n"
     "The service should process requests efficiently.\n"
+    "The system must support many users.\n"
+    "The system must support 100 concurrent users.\n"
     "When the user selects Cancel, close the dialog without saving changes."
 )
 
@@ -44,7 +46,8 @@ def main() -> None:
         submitted = st.form_submit_button("Analyze", type="primary")
 
     st.caption(
-        "Current checks cover quickly, user-friendly, and efficiently. "
+        "Current checks cover vague wording (quickly, user-friendly, efficiently) "
+        "and imprecise quantities (many, several, few). "
         "Warnings support human review; no warning does not guarantee a clear requirement."
     )
 
@@ -62,6 +65,8 @@ def main() -> None:
         for requirement in requirements:
             tokens = tokenize_requirement(requirement)
             findings = check_vague_wording(requirement)
+            findings.extend(check_imprecise_quantity(requirement, tokens))
+            findings.sort(key=lambda finding: finding.start)
             results.append((requirement, tokens, findings))
 
     requirement_count, warning_count, token_count = st.columns(3)
@@ -74,6 +79,7 @@ def main() -> None:
         st.markdown(highlight_findings(requirement.text, findings), unsafe_allow_html=True)
 
         for finding in findings:
+            st.caption(finding.category.replace("-", " ").capitalize())
             st.warning(f"{finding.phrase}: {finding.explanation}")
             st.write(f"Suggestion: {finding.suggestion}")
         if not findings:
@@ -83,7 +89,8 @@ def main() -> None:
             st.caption(
                 "spaCy splits the text into words and punctuation. Start and end are "
                 "character positions in the original line, starting at zero; end is excluded. "
-                "The current warnings come from phrase rules, not a trained classifier."
+                "The quantity rule checks these tokens for many, several, and few. "
+                "Both warning categories use rules; a trained classifier is planned."
             )
             st.dataframe([asdict(token) for token in tokens], hide_index=True)
 

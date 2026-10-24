@@ -2,8 +2,12 @@
 
 from dataclasses import dataclass
 import re
+from typing import TYPE_CHECKING
 
 from .parser import Requirement
+
+if TYPE_CHECKING:
+    from .preprocessing import Token
 
 
 @dataclass(frozen=True)
@@ -41,6 +45,7 @@ _GUIDANCE = {
 
 _VAGUE_WORDING = re.compile(r"\b(?:quickly|user-friendly|efficiently)\b", re.IGNORECASE)
 _QUOTED_TEXT = re.compile(r'"[^"\r\n]*"|“[^”\r\n]*”')
+_IMPRECISE_QUANTITIES = {"many", "several", "few"}
 
 
 def check_vague_wording(requirement: Requirement) -> list[Finding]:
@@ -65,6 +70,40 @@ def check_vague_wording(requirement: Requirement) -> list[Finding]:
                 phrase=match.group(),
                 explanation=explanation,
                 suggestion=suggestion,
+            )
+        )
+    return findings
+
+
+def check_imprecise_quantity(
+    requirement: Requirement, tokens: list["Token"]
+) -> list[Finding]:
+    """Flag unspecified quantities using tokens from the supplied requirement.
+
+    The caller passes tokenize_requirement(requirement) so the app can reuse
+    the same tokens for analysis and display. This is a lexical heuristic;
+    it does not infer grammatical roles or resolve quantities from context.
+    """
+    quoted_spans = [match.span() for match in _QUOTED_TEXT.finditer(requirement.text)]
+    findings = []
+    for token in tokens:
+        if token.text.lower() not in _IMPRECISE_QUANTITIES:
+            continue
+        if any(start <= token.start and token.end <= end for start, end in quoted_spans):
+            continue
+        findings.append(
+            Finding(
+                rule_id="RL002",
+                category="imprecise-quantity",
+                line_number=requirement.line_number,
+                start=token.start,
+                end=token.end,
+                phrase=token.text,
+                explanation=f"'{token.text}' does not specify an exact quantity or range.",
+                suggestion=(
+                    "Specify a count, minimum, maximum, or range and the conditions "
+                    "it applies to. For user capacity, state whether users are concurrent."
+                ),
             )
         )
     return findings

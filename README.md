@@ -6,7 +6,7 @@ For example, "The application should load quickly" does not tell a tester how lo
 
 ## Project status
 
-Early development: a Streamlit interface connects line-based input parsing, English tokenization with spaCy, and an initial vague-wording rule. It displays highlighted findings, explanations, suggestions, and token details. The current warning rule operates directly on text. Token-aware rules, part-of-speech tagging, and classification are planned.
+Early development: a Streamlit interface connects line-based input parsing, English tokenization with spaCy, and checks for vague wording and imprecise quantities. It displays highlighted findings, explanations, suggestions, and token details. The quantity rule consumes spaCy tokens; the vague-wording rule searches the original text. Part-of-speech tagging and classification are planned.
 
 See [example requirements](docs/examples.md) for the proposed warnings and expected behavior.
 
@@ -55,7 +55,7 @@ Open the local URL shown in the terminal if the browser does not open automatica
 - Each warning includes an explanation and an improvement suggestion.
 - Expand **Explore NLP tokens** to inspect spaCy tokenization and character positions.
 
-The included sample is expected to produce four requirements and three warnings. The final requirement has no warning from the current rule. Empty input displays a prompt to enter a requirement. Stop the local server with Ctrl+C in the terminal.
+The included sample is expected to produce six requirements and four warnings. The last two requirements have no warnings from the current rules. Empty input displays a prompt to enter a requirement. Stop the local server with Ctrl+C in the terminal.
 
 ## Run the parser
 
@@ -125,7 +125,7 @@ Output:
 
 Character ranges are zero-based and exclude the end position. Each token preserves the original spelling and source line number. Whitespace-only tokens are omitted, but positions still refer to the unchanged input. Punctuation, numbers, quotes, and negation are retained for later checks.
 
-This component uses spaCy's English tokenization rules. It does not assign grammatical tags, produce lemmas, classify requirements, or infer meaning. The existing `RL001` rule remains an independent baseline and does not yet consume these tokens. See [spaCy's tokenization documentation](https://spacy.io/usage/linguistic-features#tokenization).
+This component uses spaCy's English tokenization rules. It does not assign grammatical tags, produce lemmas, classify requirements, or infer meaning. `RL002` uses these tokens to identify imprecise quantities; `RL001` searches the original text. See [spaCy's tokenization documentation](https://spacy.io/usage/linguistic-features#tokenization).
 
 ## Check vague wording
 
@@ -156,8 +156,35 @@ Finding offsets are zero-based positions within the original line. The end posit
 
 - This is a small phrase-based rule, not a semantic assessment. It does not detect every form of ambiguity or infer whether nearby text already defines a measurable target.
 - Paired straight or curly double quotes mark literal text to skip, avoiding warnings on labels such as `"Quickly"`. This heuristic also skips whole requirements enclosed in those quotes. Single quotes, escaped quotes, and nested quotations are not handled specially.
-- Only the three listed spellings are supported. Quantity and missing-performance-criteria checks are not implemented yet.
+- `RL001` supports only the three listed spellings. Missing-performance-criteria checks are not implemented yet.
 - Suggestions ask for stakeholder-defined criteria; they do not invent thresholds or rewrite requirements.
+
+## Check imprecise quantities
+
+Rule `RL002` checks spaCy tokens for `many`, `several`, and `few`, ignoring letter case. In `a few records`, the highlighted token is `few`. Matches inside paired straight or curly double quotes are skipped using the same heuristic as `RL001`.
+
+```python
+from requirementlint import check_imprecise_quantity, parse_requirements
+from requirementlint.preprocessing import tokenize_requirement
+
+for requirement in parse_requirements("The system must support many users."):
+    tokens = tokenize_requirement(requirement)
+    for finding in check_imprecise_quantity(requirement, tokens):
+        print(finding.phrase, finding.explanation)
+```
+
+The app reuses the same token list for this rule and the token display. Suggestions request explicit quantities and relevant conditions without choosing targets automatically.
+
+| Input | Expected quantity finding |
+| --- | --- |
+| Support many users. | `many` |
+| Process SEVERAL requests. | `SEVERAL` |
+| Keep a few records. | `few` |
+| Support 100 concurrent users. | None |
+| Display the label "Many". | None |
+| Process many requests quickly. | `many` from RL002, plus `quickly` from RL001 |
+
+This is a token-based lexical rule, not grammatical or semantic analysis. It can flag uses such as `as many as 100 users` or `many-to-many relationships` even though their meaning may be precise. A numeric requirement receiving no warning has not been validated for completeness. Quoted prose is skipped, and single, nested, or escaped quotes are not handled specially.
 
 ## Tests
 
@@ -170,7 +197,7 @@ The tests cover input parsing, token boundaries and source positions, contractio
 ## Features and scope
 
 - Accept pasted English requirements, initially one requirement per line.
-- Highlight the three supported vague phrases. Imprecise-quantity checks are planned.
+- Highlight supported vague phrases and imprecise quantities.
 - Planned: flag selected performance statements that lack measurable criteria.
 - Explain each warning and prompt the user to make the requirement testable.
 - Keep the original wording unchanged for human review.
