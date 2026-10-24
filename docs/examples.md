@@ -2,6 +2,8 @@
 
 These hand-written examples specify the intended behavior of the planned checks. They illustrate ambiguous wording, measurable requirements, and potential false positives. They are not an evaluation dataset or measured results.
 
+The current `RL001` rule covers E01 and E02 and skips the double-quoted label in E08. E03 and E04 remain targets for future rules. See the README for supported phrases and limitations.
+
 ## Initial warning categories
 
 | Category                     | What it means                                        | What the tool should ask for                   |
