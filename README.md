@@ -6,7 +6,7 @@ For example, "The application should load quickly" does not tell a tester how lo
 
 ## Project status
 
-College-project prototype: a Streamlit interface connects English tokenization with spaCy, checks for vague wording and imprecise quantities, and an optional TF-IDF plus Logistic Regression classifier. Training is performed locally using the included synthetic starter data. The app displays model predictions separately from rule-based highlights and suggestions. Part-of-speech tagging is not implemented.
+College-project prototype: a Streamlit interface connects English tokenization with spaCy, checks for vague wording, imprecise quantities, and selected performance statements, and an optional TF-IDF plus Logistic Regression classifier. Training is performed locally using the included synthetic starter data. The app shows a single review status and actionable suggestions for each requirement. Part-of-speech tagging is not implemented.
 
 See [example requirements](docs/examples.md) for the proposed warnings and expected behavior.
 
@@ -50,12 +50,17 @@ On Windows, using the local environment directly:
 
 Open the local URL shown in the terminal if the browser does not open automatically. Paste English requirements, one per line, and select **Analyze**.
 
-- The summary shows requirement and rule-warning counts.
+- The summary shows the number of requirements and how many need review.
 - Potentially vague phrases are highlighted in their original text.
-- Each warning includes an explanation and an improvement suggestion.
-- After training, an ML prediction classifies each requirement as potentially vague or relatively clear. This prediction does not change the rule-warning count.
+- Each result shows **Needs review** or **No issues detected**, with a short explanation and improvement suggestion when available.
+- A requirement needs review if a rule finds an issue, the model predicts vague, or none of its features are recognized by the model. A clear model prediction does not cancel a rule finding.
+- Model-only flags receive general review guidance; they do not produce invented phrase highlights or specific diagnoses. Inputs outside the model vocabulary request manual review.
 
-The included sample is expected to produce six requirements and four warnings. The last two requirements have no warnings from the current rules. Empty input displays a prompt to enter a requirement. Stop the local server with Ctrl+C in the terminal.
+The included sample has four requirements. The first two receive performance findings; the last two have no rule findings. Model predictions can add review flags. Empty input displays a prompt to enter a requirement. Stop the local server with Ctrl+C in the terminal.
+
+## Model diagnostics
+
+The interface focuses on findings and next actions. Feature weights, score breakdowns, dataset provenance, and evaluation methodology are documented separately in [model notes](docs/model-notes.md) and [dataset documentation](data/README.md). The `explain_predictions` helper remains available for technical analysis, without displaying its numerical breakdown in the app.
 
 ## Train the NLP classifier
 
@@ -91,7 +96,7 @@ python train_model.py --evaluate-test
 
 This command retrains using the same training data and also writes `models/test_evaluation.json`, including test metrics and individual predictions. Default training does not recompute that report; an existing test report therefore belongs to the earlier explicit test run. Both development and test examples remain excluded from fitting. Test scores should not be repeatedly used to guide tuning.
 
-The app can run without a saved model and still provide rule findings. After training, restart or refresh the app and select **Analyze** to display the ML predictions. The model file's timestamp is used to refresh the cached model after retraining.
+The app can run without a saved model and still provide rule findings; it shows a brief notice when language classification is unavailable. After training, restart or refresh the app and select **Analyze** to include classifier predictions in review statuses. The model file's timestamp is used to refresh the cached model after retraining.
 
 ### Understanding the results
 
@@ -104,7 +109,7 @@ These are evaluation scores, not confidence scores for individual requirements. 
 
 The expanded dataset is AI-assisted synthetic data with provisional labels, not an externally validated benchmark. The old 12-example test set is now development data because its errors have been inspected. The new 40-example test set is separate, but shares the same synthetic authoring process. Neither set establishes real-world accuracy. See [dataset provenance and labelling](data/README.md). TF-IDF cannot represent words absent from the training vocabulary, and a classifier can learn superficial writing patterns. Independent real examples and reviewed labels are needed for a meaningful quality assessment.
 
-Rule findings and ML predictions are independent. The model can flag a sentence with no rule match or consider a rule-flagged sentence relatively clear. Neither result automatically overrides the other. Highlights and suggestions come from the rules, not from an explanation of the classifier's decision.
+Rule findings and ML predictions are computed independently. The app combines them into a review status: either source can flag a requirement. This status is not the classifier label and is not an independently evaluated accuracy score. Specific highlights and suggestions come from the rules. Adding a rule changes the rule baseline in future evaluation runs; previous reports still describe their original code and data.
 
 ## Run the parser
 
@@ -205,7 +210,7 @@ Finding offsets are zero-based positions within the original line. The end posit
 
 - This is a small phrase-based rule, not a semantic assessment. It does not detect every form of ambiguity or infer whether nearby text already defines a measurable target.
 - Paired straight or curly double quotes mark literal text to skip, avoiding warnings on labels such as `"Quickly"`. This heuristic also skips whole requirements enclosed in those quotes. Single quotes, escaped quotes, and nested quotations are not handled specially.
-- `RL001` supports only the three listed spellings. Missing-performance-criteria checks are not implemented yet.
+- `RL001` supports only the three listed spellings. The separate `RL003` check covers selected fast-loading and low-latency statements.
 - Suggestions ask for stakeholder-defined criteria; they do not invent thresholds or rewrite requirements.
 
 ## Check imprecise quantities
@@ -235,20 +240,27 @@ The app tokenizes each requirement internally and passes the tokens to this rule
 
 This is a token-based lexical rule, not grammatical or semantic analysis. It can flag uses such as `as many as 100 users` or `many-to-many relationships` even though their meaning may be precise. A numeric requirement receiving no warning has not been validated for completeness. Quoted prose is skipped, and single, nested, or escaped quotes are not handled specially.
 
+## Check performance wording
+
+Rule `RL003` identifies selected speed claims without a directly attached upper time limit, including `load fast`, `low latency`, and `Latency should be very low`. It handles `low`, `lower`, and `lowest` with singular/plural `latency` and `response time`, preserving the original wording for highlighting. A comparative such as `lower than 100 ms` supplies a time bound; `lower than before` does not. It asks for a time target and test conditions without choosing thresholds automatically. Quoted labels are skipped. This is explicit word-form coverage in a phrase check, not a general lemmatizer; the classifier's preprocessing is unchanged.
+
+The check uses conservative phrase patterns and local time-bound matching. It does not interpret arbitrary sentence structure, validate every performance criterion, or infer references to limits defined elsewhere. A user count alone does not specify loading time. See [examples](docs/examples.md) and the rule's tests for supported forms and boundary cases.
+
 ## Tests
 
 ```sh
 python -m unittest discover -s tests -v
 ```
 
-The tests cover input parsing, token boundaries and source positions, contractions, decimal numbers, warning explanations and locations, case handling, repeated matches, word boundaries, quoted labels, clear requirements, and the parser-to-rule workflow.
+The tests cover input parsing, token boundaries and source positions, contractions, decimal numbers, warning explanations and locations, case handling, repeated matches, word boundaries, quoted labels, clear requirements, and the parser-to-rule workflow. Performance tests cover vague speed statements, attached time limits, unrelated numbers, and source offsets. Classifier-explanation tests check prediction consistency, score reconstruction including omitted features, contribution direction, class ordering, and unknown vocabulary using a small in-memory model fixture.
 
 ## Features and scope
 
 - Accept pasted English requirements, initially one requirement per line.
 - Highlight supported vague phrases and imprecise quantities.
 - Predict potentially vague or relatively clear wording using a locally trained classifier.
-- Planned: flag selected performance statements that lack measurable criteria.
+- Keep model feature contributions available for technical analysis outside the main interface.
+- Flag selected performance statements that lack an attached time target.
 - Explain each warning and prompt the user to make the requirement testable.
 - Keep the original wording unchanged for human review.
 
@@ -260,7 +272,7 @@ A warning is a reason to review a requirement, not proof that it is wrong. Findi
 2. **Process text:** identify words and phrases while keeping their original positions for highlighting.
 3. **Apply rules:** look for a small set of warning patterns and record their locations, explanations, and suggestions.
 4. **Classify:** when a trained model is available, transform requirements into TF-IDF features and predict a label.
-5. **Display results:** show independent rule findings and model predictions beside the original requirement.
+5. **Display results:** combine available signals into one review status, with rule-based highlights and actionable guidance beside the original requirement.
 
 Training and evaluation run separately from the app. The app loads the saved model for predictions; clicking Analyze does not retrain it.
 

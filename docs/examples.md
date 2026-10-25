@@ -2,7 +2,7 @@
 
 These hand-written examples specify the intended behavior of the planned checks. They illustrate ambiguous wording, measurable requirements, and potential false positives. They are not an evaluation dataset or measured results.
 
-The current `RL001` rule covers E01 and E02 and skips the double-quoted label in E08. The token-based `RL002` rule covers E03. E04 remains a target for a future performance rule. See the README for supported phrases and limitations.
+The current `RL001` rule covers E01 and E02 and skips the double-quoted label in E08. The token-based `RL002` rule covers E03. `RL003` covers selected performance phrases, including E04. See the README for supported phrases and limitations.
 
 ## Initial warning categories
 
@@ -25,7 +25,24 @@ The current `RL001` rule covers E01 and E02 and skips the double-quoted label in
 | E07 | When the user selects Cancel, the system must close the dialog without saving changes. | No warning from the initial checks. An observable behavior can be testable without a numeric target.                                    |
 | E08 | The system must display the label "Quickly" on the shortcut button.                    | No vague-wording warning is intended for the quoted label. This case tests a potential false positive in keyword matching. |
 
-E01 overlaps with the planned performance check. Checks that identify the same missing criterion should produce a single explanation to avoid duplicate warnings.
+`RL003` does not repeat the `quickly` finding handled by `RL001`.
+
+## Performance guidance
+
+| Requirement | Expected performance finding |
+| --- | --- |
+| The page should load fast. | Ask for a loading-time limit and test conditions. |
+| Latency should be very low. | Ask for a latency limit and workload conditions. |
+| The app must perform under lower latencies. | Ask for a latency limit, just as for low latency. |
+| The app must perform under lower latency. | Ask for a latency limit. |
+| The app must perform under low latencies. | Ask for a latency limit. |
+| Latencies must be lower than 100 ms. | No missing-time-limit finding from RL003. |
+| The page must load within 2 seconds for 100 concurrent users. | None from RL003. |
+| The page should load fast for 100 concurrent users. | The user count does not define a time limit. |
+| The system must display the label "load fast". | None for the quoted label. |
+| Selecting the Fast preset must change the preview resolution. | None from RL003. |
+
+These are rule expectations, not measured classifier results. A classifier flag can still request review when a rule finds nothing.
 
 ## Example suggestion
 

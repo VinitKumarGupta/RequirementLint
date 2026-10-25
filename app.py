@@ -4,17 +4,18 @@ from html import escape
 
 import streamlit as st
 
-from requirementlint import Finding, check_imprecise_quantity, check_vague_wording, parse_requirements
+from requirementlint import (
+    Finding, check_imprecise_quantity, check_performance_criteria,
+    check_vague_wording, parse_requirements,
+)
 from requirementlint.preprocessing import tokenize_requirement
-from requirementlint.classifier import LABEL_NAMES, MODEL_PATH, load_model
+from requirementlint.classifier import MODEL_PATH, explain_predictions, load_model
 
 
 SAMPLE_REQUIREMENTS = (
-    "The application should load quickly.\n"
-    "The interface must be user-friendly.\n"
-    "The service should process requests efficiently.\n"
-    "The system must support many users.\n"
-    "The system must support 100 concurrent users.\n"
+    "The page should load fast.\n"
+    "Latency should be very low.\n"
+    "The page must load within 2 seconds for 100 concurrent users.\n"
     "When the user selects Cancel, close the dialog without saving changes."
 )
 
@@ -44,7 +45,7 @@ def highlight_findings(text: str, findings: list[Finding]) -> str:
 def main() -> None:
     st.set_page_config(page_title="RequirementLint", page_icon="📝", layout="centered")
     st.title("RequirementLint")
-    st.write("Find potentially vague wording and make software requirements easier to test.")
+    st.write("Find unclear requirements and see what to improve.")
     st.caption("English requirements · One requirement per line")
 
     model = None
@@ -52,24 +53,15 @@ def main() -> None:
         try:
             model = cached_model(MODEL_PATH.stat().st_mtime_ns)
         except (OSError, ValueError, EOFError, ImportError, AttributeError):
-            st.warning("The local classifier could not be loaded. Retrain it using the README instructions.")
+            pass
     if model is None:
-        st.info("Rule analysis is available. Train the starter model using the README instructions to enable ML predictions.")
-    else:
-        st.caption("ML demo: trained on a small synthetic dataset. Predictions may disagree with the rules.")
+        st.info("Language classification is unavailable. Basic wording checks are still available.")
 
     with st.form("requirements_form"):
         text = st.text_area("Requirements", value=SAMPLE_REQUIREMENTS, height=200)
         submitted = st.form_submit_button("Analyze", type="primary")
 
-    st.caption(
-        "Current checks cover vague wording (quickly, user-friendly, efficiently) "
-        "and imprecise quantities (many, several, few). "
-        "Warnings support human review; no warning does not guarantee a clear requirement."
-    )
-
     if not submitted:
-        st.info("Edit the sample or paste your requirements, then select Analyze.")
         return
 
     requirements = parse_requirements(text)
@@ -83,29 +75,55 @@ def main() -> None:
             tokens = tokenize_requirement(requirement)
             findings = check_vague_wording(requirement)
             findings.extend(check_imprecise_quantity(requirement, tokens))
+            findings.extend(check_performance_criteria(requirement))
             findings.sort(key=lambda finding: finding.start)
             results.append((requirement, findings))
 
-        predictions = model.predict([requirement.text for requirement in requirements]) if model is not None else None
+        explanations = (
+            explain_predictions(model, [requirement.text for requirement in requirements])
+            if model is not None else None
+        )
 
-    requirement_count, warning_count = st.columns(2)
-    requirement_count.metric("Requirements", len(results))
-    warning_count.metric("Warnings", sum(len(findings) for _, findings in results))
+    # A review flag is the union of rule findings, model flags, and inputs the
+    # model cannot assess. It does not relabel either independent prediction.
+    needs_review = [
+        bool(findings) or (
+            explanations is not None
+            and (explanations[index].label == "vague" or explanations[index].known_feature_count == 0)
+        )
+        for index, (_, findings) in enumerate(results)
+    ]
+    summary = st.columns(2)
+    summary[0].metric("Requirements", len(results))
+    summary[1].metric("Need review", sum(needs_review))
 
     for index, (requirement, findings) in enumerate(results):
-        st.subheader(f"Line {requirement.line_number}")
-        st.markdown(highlight_findings(requirement.text, findings), unsafe_allow_html=True)
+        explanation = explanations[index] if explanations is not None else None
+        with st.container(border=True):
+            st.markdown(f"**Line {requirement.line_number}**")
+            st.markdown(highlight_findings(requirement.text, findings), unsafe_allow_html=True)
+            if needs_review[index]:
+                st.warning("Needs review")
+            else:
+                st.success("No issues detected")
 
-        if predictions is not None:
-            st.write(f"**ML prediction:** {LABEL_NAMES[predictions[index]]}")
-            st.caption("Whole-requirement classification. Highlighted spans and suggestions below come from rules.")
+            for finding in findings:
+                st.write(f"**Why:** {finding.explanation}")
+                st.write(f"**Improve:** {finding.suggestion}")
+            if not findings and explanation is not None and explanation.known_feature_count == 0:
+                st.info(
+                    "There is not enough familiar wording to assess this requirement. "
+                    "Review its expected behavior and acceptance criteria manually."
+                )
+            elif not findings and explanation is not None and explanation.label == "vague":
+                st.write("**Why:** The wording may be open to interpretation; a specific issue could not be identified.")
+                st.write(
+                    "**Improve:** Check that the expected behavior and acceptance criteria are explicit. "
+                    "Add measurable limits where relevant."
+                )
 
-        for finding in findings:
-            st.caption(finding.category.replace("-", " ").capitalize())
-            st.warning(f"{finding.phrase}: {finding.explanation}")
-            st.write(f"Suggestion: {finding.suggestion}")
-        if not findings:
-            st.info("No warnings from the current checks.")
+    st.caption("Suggestions support human review. No issues detected does not guarantee a complete requirement.")
+
 
 if __name__ == "__main__":
     main()
