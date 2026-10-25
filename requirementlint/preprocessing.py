@@ -2,10 +2,14 @@
 
 from dataclasses import dataclass
 from functools import lru_cache
+import re
 
 from spacy.lang.en import English
 
 from .parser import Requirement
+
+
+_QUOTED_STRING = re.compile(r'"[^"\r\n]*"|“[^”\r\n]*”')
 
 
 @dataclass(frozen=True)
@@ -25,6 +29,11 @@ class Token:
 def _english_tokenizer() -> English:
     # Reuse the tokenizer across requirements instead of rebuilding it per line.
     return English()
+
+
+def mask_quoted_strings(text: str) -> str:
+    """Replace straight- or curly-double-quoted text with a literal placeholder."""
+    return _QUOTED_STRING.sub("LITERAL_STRING", text)
 
 
 def tokenize_requirement(requirement: Requirement) -> list[Token]:

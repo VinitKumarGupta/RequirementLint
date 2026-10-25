@@ -3,10 +3,21 @@
 import unittest
 
 from requirementlint import Requirement, parse_requirements
-from requirementlint.preprocessing import tokenize_requirement
+from requirementlint.preprocessing import mask_quoted_strings, tokenize_requirement
 
 
 class TokenizeRequirementTests(unittest.TestCase):
+    def test_masks_straight_and_curly_quoted_strings(self):
+        text = 'Show "Save 50% <now>" and “Retry > 3 times”.'
+        self.assertEqual(
+            mask_quoted_strings(text),
+            "Show LITERAL_STRING and LITERAL_STRING.",
+        )
+
+    def test_leaves_unquoted_and_unmatched_text_unchanged(self):
+        text = 'Set limit to 50%; label is "not closed.'
+        self.assertEqual(mask_quoted_strings(text), text)
+
     def test_separates_punctuation_from_words(self):
         tokens = tokenize_requirement(Requirement("Load quickly.", 1))
         self.assertEqual([token.text for token in tokens], ["Load", "quickly", "."])

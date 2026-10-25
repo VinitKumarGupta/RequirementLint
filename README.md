@@ -80,8 +80,8 @@ On Windows with the local environment:
 
 Training uses the 200 labelled requirements in `data/train.json`, with 100 examples per class. Routine evaluation uses the original 12 examples, now in `data/dev.json`. A separate 40-example `data/test.json` is reserved for final evaluation:
 
-1. spaCy tokenization produces words and contraction parts. Feature extraction lowercases them, retains numbers and negation, and excludes standalone punctuation.
-2. TF-IDF converts individual words and adjacent word pairs into numerical features. The vocabulary and frequency weights are learned only from training examples.
+1. Classifier feature extraction replaces paired straight or curly double-quoted spans with `LITERAL_STRING`, then spaCy tokenization produces words and contraction parts. It lowercases tokens, retains unquoted numbers and negation, and excludes standalone punctuation.
+2. A feature union combines TF-IDF word and adjacent-word-pair features with counts of unquoted digits, percent signs, and comparison operators. The TF-IDF vocabulary and frequency weights are learned only from training examples.
 3. Logistic Regression learns weights that distinguish the `vague` and `clear` labels.
 4. The trained pipeline predicts labels for the 12 development examples in `data/dev.json`. Development examples are not used for fitting.
 5. The same development examples are evaluated with the existing rules. Any rule finding maps to `vague`; no finding maps to `clear` for this baseline comparison only.
@@ -179,7 +179,7 @@ Output:
 
 Character ranges are zero-based and exclude the end position. Each token preserves the original spelling and source line number. Whitespace-only tokens are omitted, but positions still refer to the unchanged input. Punctuation, numbers, quotes, and negation are retained for later checks.
 
-This component uses spaCy's English tokenization rules. Tokenization alone does not assign grammatical tags, produce lemmas, classify requirements, or infer meaning. `RL002` uses these tokens to identify imprecise quantities; the classifier uses them to construct TF-IDF features; `RL001` searches the original text. See [spaCy's tokenization documentation](https://spacy.io/usage/linguistic-features#tokenization).
+This component uses spaCy's English tokenization rules. Tokenization alone does not assign grammatical tags, produce lemmas, classify requirements, or infer meaning. `RL002` uses these tokens to identify imprecise quantities; the classifier masks paired straight or curly double-quoted spans before using token and numeric features, while rules continue to inspect the original text. This masking is only for classifier features; displayed text and source offsets remain unchanged. See [spaCy's tokenization documentation](https://spacy.io/usage/linguistic-features#tokenization).
 
 ## Check vague wording
 
@@ -242,7 +242,7 @@ This is a token-based lexical rule, not grammatical or semantic analysis. It can
 
 ## Check performance wording
 
-Rule `RL003` identifies selected speed claims without a directly attached upper time limit, including `load fast`, `low latency`, and `Latency should be very low`. It handles `low`, `lower`, and `lowest` with singular/plural `latency` and `response time`, preserving the original wording for highlighting. A comparative such as `lower than 100 ms` supplies a time bound; `lower than before` does not. It asks for a time target and test conditions without choosing thresholds automatically. Quoted labels are skipped. This is explicit word-form coverage in a phrase check, not a general lemmatizer; the classifier's preprocessing is unchanged.
+Rule `RL003` identifies selected speed claims without a directly attached upper time limit, including `load fast`, `low latency`, and `Latency should be very low`. It handles `low`, `lower`, and `lowest` with singular/plural `latency` and `response time`, preserving the original wording for highlighting. A comparative such as `lower than 100 ms` supplies a time bound; `lower than before` does not. It asks for a time target and test conditions without choosing thresholds automatically. Quoted labels are skipped. This is explicit word-form coverage in a phrase check, not a general lemmatizer; the classifier uses separate tokenization with quoted-span masking.
 
 The check uses conservative phrase patterns and local time-bound matching. It does not interpret arbitrary sentence structure, validate every performance criterion, or infer references to limits defined elsewhere. A user count alone does not specify loading time. See [examples](docs/examples.md) and the rule's tests for supported forms and boundary cases.
 

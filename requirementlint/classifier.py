@@ -12,7 +12,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import FeatureUnion, Pipeline
 
 from .parser import Requirement
-from .preprocessing import tokenize_requirement
+from .preprocessing import mask_quoted_strings, tokenize_requirement
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -45,14 +45,16 @@ class PredictionExplanation:
 
 
 def feature_tokens(text: str) -> list[str]:
-    """Reuse spaCy tokenization, keeping words, numbers, and negation.
+    """Mask quoted text, then tokenize words, numbers, and negation.
 
     Standalone punctuation is excluded from features. Source text and the
     tokens used for highlighting are not modified.
     """
     return [
         token.text.lower()
-        for token in tokenize_requirement(Requirement(text=text, line_number=1))
+        for token in tokenize_requirement(
+            Requirement(text=mask_quoted_strings(text), line_number=1)
+        )
         if any(character.isalnum() for character in token.text)
     ]
 
@@ -66,10 +68,11 @@ class NumericSignalExtractor(BaseEstimator, TransformerMixin):
     def transform(self, X):
         rows = []
         for text in X:
+            masked_text = mask_quoted_strings(text)
             rows.append([
-                sum(character.isdigit() for character in text),
-                text.count("%"),
-                sum(character in "<>=" for character in text),
+                sum(character.isdigit() for character in masked_text),
+                masked_text.count("%"),
+                sum(character in "<>=" for character in masked_text),
             ])
         return sparse.csr_matrix(np.asarray(rows, dtype=float))
 
@@ -143,7 +146,7 @@ def explain_predictions(
     for row_index, (label, score) in enumerate(zip(labels, scores)):
         row = features.getrow(row_index)
         contributions = [
-            FeatureContribution(str(names[index]), float(value * weights[index]))
+            FeatureContribution(str(names[index]).split("__")[-1], float(value * weights[index]))
             for index, value in zip(row.indices, row.data)
             if value * weights[index] != 0
         ]

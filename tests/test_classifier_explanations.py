@@ -3,7 +3,9 @@
 from copy import deepcopy
 import unittest
 
-from requirementlint.classifier import create_pipeline, explain_predictions
+from requirementlint.classifier import (
+    NumericSignalExtractor, create_pipeline, explain_predictions, feature_tokens,
+)
 
 
 class ClassifierExplanationTests(unittest.TestCase):
@@ -68,6 +70,20 @@ class ClassifierExplanationTests(unittest.TestCase):
     def test_nonpositive_feature_limit_is_rejected(self):
         with self.assertRaises(ValueError):
             explain_predictions(self.model, ["vague"], top_n=0)
+
+
+class QuotedTextFeatureTests(unittest.TestCase):
+    def test_tfidf_features_replace_quoted_content_with_placeholder(self):
+        self.assertEqual(
+            feature_tokens('Display "vague 99% >" on the button.'),
+            ["display", "literal_string", "on", "the", "button"],
+        )
+
+    def test_numeric_features_ignore_digits_percentages_and_operators_in_quotes(self):
+        extractor = NumericSignalExtractor()
+        actual = extractor.transform(['Limit is 100 ms; label: "99% >= 50".'])
+        expected = extractor.transform(["Limit is 100 ms; label: LITERAL_STRING."])
+        self.assertEqual((actual != expected).nnz, 0)
 
 
 if __name__ == "__main__":
