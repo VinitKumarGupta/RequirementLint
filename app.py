@@ -5,8 +5,8 @@ from html import escape
 import streamlit as st
 
 from requirementlint import (
-    Finding, check_imprecise_quantity, check_performance_criteria,
-    check_vague_wording, parse_requirements,
+    Finding, check_imprecise_quantity, check_imprecise_quantity_phrases,
+    check_performance_criteria, check_vague_wording, parse_requirements,
 )
 from requirementlint.preprocessing import tokenize_requirement
 from requirementlint.classifier import MODEL_PATH, explain_predictions, load_model
@@ -75,6 +75,7 @@ def main() -> None:
             tokens = tokenize_requirement(requirement)
             findings = check_vague_wording(requirement)
             findings.extend(check_imprecise_quantity(requirement, tokens))
+            findings.extend(check_imprecise_quantity_phrases(requirement))
             findings.extend(check_performance_criteria(requirement))
             findings.sort(key=lambda finding: finding.start)
             results.append((requirement, findings))

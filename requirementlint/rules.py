@@ -41,11 +41,34 @@ _GUIDANCE = {
         "The word 'efficiently' does not identify a metric or target.",
         "Specify a relevant metric, such as processing time or resource usage, and its target and test conditions.",
     ),
+    "seamlessly": (
+        "'Seamlessly' does not identify the user-visible behavior or acceptance threshold.",
+        "Describe the specific workflow, expected result, and the conditions that demonstrate success.",
+    ),
+    "robust": (
+        "'Robust' is subjective unless paired with concrete safety, reliability, or failure-handling criteria.",
+        "State the operating conditions, failure modes, and acceptable performance under those conditions.",
+    ),
+    "highly reliable": (
+        "'Highly reliable' does not state a measurable availability or failure threshold.",
+        "Specify the reliability target, such as uptime or error rate, and the conditions under which it is measured.",
+    ),
+    "state-of-the-art": (
+        "'State-of-the-art' is promotional rather than testable and does not define a measurable outcome.",
+        "Replace it with a measurable target, such as a latency, throughput, accuracy, or availability threshold.",
+    ),
 }
 
-_VAGUE_WORDING = re.compile(r"\b(?:quickly|user-friendly|efficiently)\b", re.IGNORECASE)
+_VAGUE_WORDING = re.compile(
+    r"\b(?:quickly|user-friendly|efficiently|seamlessly|robust|highly[ \t]+reliable|state-of-the-art)\b",
+    re.IGNORECASE,
+)
 _QUOTED_TEXT = re.compile(r'"[^"\r\n]*"|“[^”\r\n]*”')
 _IMPRECISE_QUANTITIES = {"many", "several", "few"}
+_IMPRECISE_QUANTITY_PHRASES = re.compile(
+    r"\b(?:large[ \t]+(?:volume|volumes)|high[ \t]+(?:capacity|capacities)|significant[ \t]+(?:amount|amounts))\b",
+    re.IGNORECASE,
+)
 
 
 def check_vague_wording(requirement: Requirement) -> list[Finding]:
@@ -103,6 +126,37 @@ def check_imprecise_quantity(
                 suggestion=(
                     "Specify a count, minimum, maximum, or range and the conditions "
                     "it applies to. For user capacity, state whether users are concurrent."
+                ),
+            )
+        )
+    return findings
+
+
+def check_imprecise_quantity_phrases(requirement: Requirement) -> list[Finding]:
+    """Flag vague multi-word quantity phrases such as 'large volume' or 'high capacity'.
+
+    This complements the single-word quantity rule by catching short, common
+    phrase patterns that leave the size or capacity unclear without specifying a
+    measurable threshold.
+    """
+    quoted_spans = [match.span() for match in _QUOTED_TEXT.finditer(requirement.text)]
+    findings = []
+    for match in _IMPRECISE_QUANTITY_PHRASES.finditer(requirement.text):
+        if any(start <= match.start() and match.end() <= end for start, end in quoted_spans):
+            continue
+        phrase = match.group(0)
+        findings.append(
+            Finding(
+                rule_id="RL004",
+                category="imprecise-quantity-phrase",
+                line_number=requirement.line_number,
+                start=match.start(),
+                end=match.end(),
+                phrase=phrase,
+                explanation=f"'{phrase}' does not specify a measurable quantity, capacity, or limit.",
+                suggestion=(
+                    "State the exact capacity, throughput, or volume target and the conditions "
+                    "under which it is measured, such as concurrent users, dataset size, or time window."
                 ),
             )
         )

@@ -10,7 +10,8 @@ import sklearn
 from sklearn.metrics import classification_report
 
 from requirementlint import (
-    Requirement, check_imprecise_quantity, check_performance_criteria, check_vague_wording,
+    Requirement, check_imprecise_quantity, check_imprecise_quantity_phrases,
+    check_performance_criteria, check_vague_wording,
 )
 from requirementlint.classifier import MODEL_PATH, PROJECT_ROOT, create_pipeline
 from requirementlint.preprocessing import tokenize_requirement
@@ -41,6 +42,7 @@ def rule_prediction(text: str) -> str:
     requirement = Requirement(text=text, line_number=1)
     findings = check_vague_wording(requirement)
     findings.extend(check_imprecise_quantity(requirement, tokenize_requirement(requirement)))
+    findings.extend(check_imprecise_quantity_phrases(requirement))
     findings.extend(check_performance_criteria(requirement))
     return "vague" if findings else "clear"
 

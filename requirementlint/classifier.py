@@ -4,9 +4,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import joblib
+import numpy as np
+from scipy import sparse
+from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
-from sklearn.pipeline import Pipeline
+from sklearn.pipeline import FeatureUnion, Pipeline
 
 from .parser import Requirement
 from .preprocessing import tokenize_requirement
@@ -54,16 +57,42 @@ def feature_tokens(text: str) -> list[str]:
     ]
 
 
+class NumericSignalExtractor(BaseEstimator, TransformerMixin):
+    """Count numeric and comparison cues that often indicate measurable requirements."""
+
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X):
+        rows = []
+        for text in X:
+            rows.append([
+                sum(character.isdigit() for character in text),
+                text.count("%"),
+                sum(character in "<>=" for character in text),
+            ])
+        return sparse.csr_matrix(np.asarray(rows, dtype=float))
+
+    def get_feature_names_out(self, input_features=None):
+        return np.asarray(
+            ["numeric__digits", "numeric__percentages", "numeric__operators"],
+            dtype=object,
+        )
+
+
 def create_pipeline() -> Pipeline:
-    """Learn TF-IDF features and classifier weights from training data only."""
+    """Learn TF-IDF features and numeric cues before the classifier step."""
     return Pipeline([
-        ("tfidf", TfidfVectorizer(
-            tokenizer=feature_tokens,
-            token_pattern=None,
-            lowercase=False,
-            ngram_range=(1, 2),
-            sublinear_tf=True,
-        )),
+        ("features", FeatureUnion([
+            ("tfidf", TfidfVectorizer(
+                tokenizer=feature_tokens,
+                token_pattern=None,
+                lowercase=False,
+                ngram_range=(1, 2),
+                sublinear_tf=True,
+            )),
+            ("numeric", NumericSignalExtractor()),
+        ])),
         ("classifier", LogisticRegression(max_iter=1000, random_state=42)),
     ])
 
@@ -88,15 +117,23 @@ def explain_predictions(
     if not texts:
         return []
 
-    vectorizer = model.named_steps["tfidf"]
+    if "features" in model.named_steps:
+        feature_union = model.named_steps["features"]
+        features = feature_union.transform(texts).tocsr()
+        names = feature_union.get_feature_names_out()
+    elif "tfidf" in model.named_steps:
+        vectorizer = model.named_steps["tfidf"]
+        features = vectorizer.transform(texts).tocsr()
+        names = vectorizer.get_feature_names_out()
+    else:
+        raise ValueError("Explanations require a fitted TF-IDF feature extractor.")
+
     classifier = model.named_steps["classifier"]
     classes = list(classifier.classes_)
     if set(classes) != {"clear", "vague"} or classifier.coef_.shape[0] != 1:
         raise ValueError("Explanations require a binary clear/vague Logistic Regression model.")
 
     direction = 1.0 if classes[1] == "vague" else -1.0
-    features = vectorizer.transform(texts).tocsr()
-    names = vectorizer.get_feature_names_out()
     weights = classifier.coef_[0] * direction
     intercept = float(classifier.intercept_[0]) * direction
     labels = classifier.predict(features)

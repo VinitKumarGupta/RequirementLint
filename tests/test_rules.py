@@ -2,7 +2,9 @@
 
 import unittest
 
-from requirementlint import Requirement, check_vague_wording, parse_requirements
+from requirementlint import (
+    Requirement, check_imprecise_quantity_phrases, check_vague_wording, parse_requirements,
+)
 
 
 class VagueWordingTests(unittest.TestCase):
@@ -78,6 +80,32 @@ class VagueWordingTests(unittest.TestCase):
         ]
         self.assertEqual(len(findings), 1)
         self.assertEqual((findings[0].line_number, findings[0].start, findings[0].end), (3, 5, 12))
+
+
+class ImpreciseQuantityPhraseTests(unittest.TestCase):
+    def test_supported_phrases_have_findings_with_original_spans(self):
+        cases = (
+            ("The system must process a large volume of records.", "large volume"),
+            ("The service should support high capacity.", "high capacity"),
+            ("The report contains a significant amount of data.", "significant amount"),
+        )
+        for text, phrase in cases:
+            with self.subTest(phrase=phrase):
+                finding = check_imprecise_quantity_phrases(Requirement(text, 3))[0]
+                self.assertEqual(finding.rule_id, "RL004")
+                self.assertEqual(finding.category, "imprecise-quantity-phrase")
+                self.assertEqual(finding.phrase, phrase)
+                self.assertEqual(finding.line_number, 3)
+                self.assertEqual(text[finding.start:finding.end], phrase)
+                self.assertTrue(finding.explanation)
+                self.assertTrue(finding.suggestion)
+
+    def test_quoted_phrase_is_skipped(self):
+        text = 'Display the label "large volume" in the report.'
+        self.assertEqual(
+            check_imprecise_quantity_phrases(Requirement(text, 1)),
+            [],
+        )
 
 
 if __name__ == "__main__":

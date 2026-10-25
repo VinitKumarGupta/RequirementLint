@@ -41,7 +41,10 @@ _LOW_METRIC_PHRASE = re.compile(
 )
 _TIME_LIMIT = (
     r"\d+(?:\.\d+)?[ \t]*"
-    r"(?:milliseconds?|ms|seconds?|secs?|s|minutes?|mins?|min)\b"
+    r"(?:milliseconds?|ms|seconds?|secs?|s|minutes?|mins?|min|"
+    r"bytes?|B|KB|MB|GB|TB|kilobytes?|megabytes?|gigabytes?|terabytes?|"
+    r"bps|Kbps|Mbps|Gbps|%|percent|percentage)"
+    r"(?:[ \t]*(?:per[ \t]+(?:second|sec)|/s))?"
 )
 _ATTACHED_UPPER_BOUND = re.compile(
     r"[ \t]*(?:[,:—–-][ \t]*|\([ \t]*)?"
